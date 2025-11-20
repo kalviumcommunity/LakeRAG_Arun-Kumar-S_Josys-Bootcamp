@@ -9,8 +9,15 @@ lazy val root = (project in file("."))
     libraryDependencies ++= Seq(
       "org.apache.spark" %% "spark-core" % "3.4.1",
       "org.apache.spark" %% "spark-sql" % "3.4.1",
-      "io.delta" %% "delta-core" % "2.4.0"
+      "io.delta" %% "delta-core" % "2.3.0",
+      "org.apache.hadoop" % "hadoop-aws" % "3.3.4",
+      "com.amazonaws" % "aws-java-sdk-bundle" % "1.12.673",
+      "org.apache.pdfbox" % "pdfbox" % "2.0.30"
     ),
 
-    fork := true
+    fork := true,
+
+    Compile / run / javaOptions ++= Seq(
+      "-Dspark.jars.packages=io.delta:delta-core_2.12:2.3.0"
+    )
   )
