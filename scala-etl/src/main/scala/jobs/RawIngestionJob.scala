@@ -1,6 +1,7 @@
 package jobs
 
 import core.SparkBuilder
+import config.AppConfig
 import etl.raw.{RawReader, RawWriter}
 import org.apache.spark.sql.functions._
 
@@ -8,25 +9,66 @@ object RawIngestionJob {
 
   def main(args: Array[String]): Unit = {
 
-    if (args.length < 2) {
-      println("Usage: RawIngestionJob <txt|json|pdf> <path>")
-      sys.exit(1)
-    }
-
-    val fileType = args(0)
-    val inputPath = args(1)
-    val output = "data/raw_ingested/"
-
     val spark = SparkBuilder.get("RawIngestion")
 
-    val df = RawReader.read(spark, fileType, inputPath)
+    val inputPath  = AppConfig.RAW_INPUT
+    val outputPath = AppConfig.RAW_INGESTED
+
+    println(s"Reading RAW files from S3 → $inputPath")
+    println(s"Writing extracted text to → $outputPath")
+
+    // List all files inside RAW folder
+    val files = spark.sparkContext
+      .binaryFiles(inputPath + "/*")
+      .keys
+      .collect()
+
+    if (files.isEmpty) {
+      println(s"❌ No files found in RAW folder: $inputPath")
+      spark.stop()
+      return
+    }
+
+    println(s"📄 Found ${files.length} files:")
+    files.foreach(f => println(s" - $f"))
+
+    val supported = Set("pdf", "txt", "json")
+
+    // Extract raw text
+    val dfs = files.flatMap { file =>
+      val ext = file.split("\\.").last.toLowerCase
+
+      if (!supported.contains(ext)) {
+        println(s"⚠️ Skipping unsupported file: $file")
+        None
+      } else {
+        println(s"➡ Extracting: $file")
+        Some(
+          RawReader.read(
+            spark,
+            ext,
+            file
+          )
+        )
+      }
+    }
+
+    if (dfs.isEmpty) {
+      println("❌ No valid files processed.")
+      spark.stop()
+      return
+    }
+
+    // Combine all extracted results
+    val finalDf = dfs.reduce(_ unionByName _)
       .withColumn("ingested_at", current_timestamp())
 
-    df.show(false)
+    finalDf.show(50, truncate = false)
 
-    RawWriter.write(df, output)
+    // Write to RAW_INGESTED Delta zone
+    RawWriter.write(finalDf, outputPath)
 
-    println(s"Raw ingestion completed → $output")
+    println(s"✅ Raw ingestion completed successfully → $outputPath")
     spark.stop()
   }
 }

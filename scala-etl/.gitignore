@@ -6,3 +6,4 @@ data/raw/*.delta
 **/*.crc
 **/*.parquet
 data
+.env
