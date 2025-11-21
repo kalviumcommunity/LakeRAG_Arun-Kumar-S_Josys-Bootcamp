@@ -1,14 +1,13 @@
-// RawWriter.scala
-package etl.raw
+package etl.silver
 
 import org.apache.spark.sql.{DataFrame, SaveMode}
 
-object RawWriter {
+object SilverWriter {
 
   def write(df: DataFrame, out: String): Unit = {
     df.write
-      .format("delta")      // write as Delta
-      .mode(SaveMode.Overwrite)
+      .format("delta")
+      .mode(SaveMode.Append)
       .save(out)
   }
 }
