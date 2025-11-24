@@ -1,8 +1,8 @@
-package etl.silver
+package etl.gold
 
 import org.apache.spark.sql.{DataFrame, SaveMode}
 
-object SilverWriter {
+object GoldWriter {
 
   def write(df: DataFrame, out: String): Unit = {
     if (df == null || df.isEmpty) return

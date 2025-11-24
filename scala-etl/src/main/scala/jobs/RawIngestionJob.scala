@@ -17,7 +17,6 @@ object RawIngestionJob {
     println(s"Reading RAW files from S3 → $inputPath")
     println(s"Writing extracted text to → $outputPath")
 
-    // List all files inside RAW folder
     val files = spark.sparkContext
       .binaryFiles(inputPath + "/*")
       .keys
@@ -34,7 +33,6 @@ object RawIngestionJob {
 
     val supported = Set("pdf", "txt", "json")
 
-    // Extract raw text
     val dfs = files.flatMap { file =>
       val ext = file.split("\\.").last.toLowerCase
 
@@ -59,13 +57,12 @@ object RawIngestionJob {
       return
     }
 
-    // Combine all extracted results
-    val finalDf = dfs.reduce(_ unionByName _)
-      .withColumn("ingested_at", current_timestamp())
+    val finalDf = dfs
+      .reduce(_ unionByName _)
+      .withColumn("ingested_at", current_timestamp())   // DQ removed
 
     finalDf.show(50, truncate = false)
 
-    // Write to RAW_INGESTED Delta zone
     RawWriter.write(finalDf, outputPath)
 
     println(s"✅ Raw ingestion completed successfully → $outputPath")
