@@ -18,17 +18,20 @@ object RawReader {
         throw new IllegalArgumentException(s"Unsupported format: $other")
     }
 
-    // 🟦 DQ CHECKS (MINIMAL, LOCAL, SAFE)
-
+    // -------------------------
+    // DQ (optimized)
+    // -------------------------
     val dqFailed = df.filter(
       col("file_path").isNull ||
       col("content").isNull ||
       length(trim(col("content"))) < 1
     )
 
-    if (!dqFailed.isEmpty) {
-      println(s"[RawReader:DQ] ❌ Found ${dqFailed.count()} bad rows in $path")
-      dqFailed.show(false)
+    val failCount = dqFailed.count()   // only action
+
+    if (failCount > 0) {
+      println(s"[RawReader:DQ] ❌ Found $failCount bad rows in $path")
+      dqFailed.show(false)            // reuses computed RDD plan
     }
 
     val cleaned = df.filter(
@@ -36,7 +39,6 @@ object RawReader {
       col("content").isNotNull &&
       length(trim(col("content"))) > 0
     )
-
 
     cleaned
   }

@@ -57,9 +57,9 @@ object RawIngestionJob {
       return
     }
 
-    val finalDf = dfs.reduce(_ unionByName _)
-      .withColumn("ingested_at", current_timestamp())
-      .filter(col("file_path").isNotNull && col("content").isNotNull)   // <-- DQ ADDED
+    val finalDf = dfs
+      .reduce(_ unionByName _)
+      .withColumn("ingested_at", current_timestamp())   // DQ removed
 
     finalDf.show(50, truncate = false)
 

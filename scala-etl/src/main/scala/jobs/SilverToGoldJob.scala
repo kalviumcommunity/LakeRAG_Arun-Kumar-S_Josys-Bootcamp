@@ -3,7 +3,6 @@ package jobs
 import core.SparkBuilder
 import config.AppConfig
 import etl.gold.{GoldTransformer, GoldWriter}
-import etl.dq.DQUtils
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
 
