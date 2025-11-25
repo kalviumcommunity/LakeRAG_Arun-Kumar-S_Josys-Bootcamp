@@ -21,3 +21,12 @@ lazy val root = (project in file("."))
       "-Dspark.jars.packages=io.delta:delta-core_2.12:2.3.0"
     )
   )
+
+assembly / mainClass := Some("jobs.RawIngestionJob")
+assembly / assemblyJarName := "lakerag-etl.jar"
+
+assemblyMergeStrategy in assembly := {
+  case PathList("META-INF", xs @ _*) => MergeStrategy.discard
+  case x => MergeStrategy.first
+}
+
