@@ -40,35 +40,37 @@ for f in files:
     dfs.append(table.to_pandas())
 
 df = pd.concat(dfs, ignore_index=True)
-print(f"✔ Loaded {len(df)} embedding rows from parquet")
+print(f"✔ Loaded {len(df)} embedding rows")
 
-# Build FAISS index
 emb = np.stack(df["embedding"].values).astype("float32")
 dimension = emb.shape[1]
+
 index = faiss.IndexFlatIP(dimension)
 index.add(emb)
-print(f"🎯 FAISS index size: {index.ntotal}")
 
-# Save locally
-os.makedirs("faiss_build", exist_ok=True)
-faiss.write_index(index, "faiss_build/index.faiss")
-df.drop(columns=["embedding"]).to_parquet("faiss_build/metadata.parquet", index=False)
+print(f"🎯 FAISS index built → vectors: {index.ntotal}")
 
-# Upload function
-def upload_file(local_path: str, s3_key: str):
-    with open(local_path, "rb") as local_f:
-        data = local_f.read()
-    with fs.open_output_stream(s3_key) as s3_f:
-        s3_f.write(data)
+os.makedirs("local_data/faiss", exist_ok=True)
+local_index = "local_data/faiss/index.faiss"
+local_meta  = "local_data/faiss/metadata.parquet"
+
+faiss.write_index(index, local_index)
+df.drop(columns=["embedding"]).to_parquet(local_meta, index=False)
+
+def upload(local_path, s3_key):
+    with open(local_path, "rb") as f_local:
+        data = f_local.read()
+    with fs.open_output_stream(s3_key) as f_s3:
+        f_s3.write(data)
 
 timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
 index_key = f"{BUCKET}/{INDEX_PREFIX}index_{timestamp}.faiss"
 meta_key  = f"{BUCKET}/{INDEX_PREFIX}metadata_{timestamp}.parquet"
 
-print("🚀 Uploading FAISS artifacts to S3...")
-upload_file("faiss_build/index.faiss", index_key)
-upload_file("faiss_build/metadata.parquet", meta_key)
+print("🚀 Uploading FAISS artifacts...")
+upload(local_index, index_key)
+upload(local_meta, meta_key)
 
-print("🎉 DONE — FAISS index generated & uploaded to S3")
-print(f"📌 index:    s3://{index_key}")
-print(f"📌 metadata: s3://{meta_key}")
+print("🎉 DONE — FAISS index uploaded")
+print("📌 index:",    f"s3://{index_key}")
+print("📌 metadata:", f"s3://{meta_key}")

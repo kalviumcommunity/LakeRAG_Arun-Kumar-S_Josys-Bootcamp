@@ -2,3 +2,4 @@
 ./airflow/dags/__pycache__/
 venv/
 faiss_build
+local_data
