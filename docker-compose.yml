@@ -6,14 +6,15 @@ x-airflow-common: &airflow-common
   environment:
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres/${POSTGRES_DB}
-    AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres/${POSTGRES_DB}
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"
     AIRFLOW__CORE__LOAD_EXAMPLES: "false"
     AIRFLOW__CORE__FERNET_KEY: ${FERNET_KEY}
     AIRFLOW__WEBSERVER__SECRET_KEY: ${SECRET_KEY}
+    # Auto-create spark_default connection → required for SparkSubmitOperator
+    AIRFLOW__CONNECTION__SPARK_DEFAULT: "spark://spark:7077"
   volumes:
     - ./airflow/dags:/opt/airflow/dags
-    - ./scala-etl/target/scala-2.12:/opt/etl            # JARs accessible inside container
+    - ./scala-etl/target/scala-2.12:/opt/etl
   depends_on:
     - postgres
     - spark
@@ -34,14 +35,26 @@ services:
     container_name: spark
     command: >
       /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
-    volumes:
-      - ./scala-etl/target/scala-2.12:/opt/etl
     ports:
       - "7077:7077"
       - "8081:8080"
 
+  spark-worker:
+    image: apache/spark:3.5.0
+    container_name: spark-worker
+    depends_on:
+      - spark
+    command: >
+      /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark:7077
+    ports:
+      - "8082:8081"
+    volumes:
+      - ./scala-etl/target/scala-2.12:/opt/etl
+
   airflow-init:
     <<: *airflow-common
+    depends_on:
+      - postgres
     command: >
       bash -c "
         airflow db init &&
@@ -51,12 +64,18 @@ services:
 
   airflow-webserver:
     <<: *airflow-common
+    depends_on:
+      - postgres
+      - spark
     command: webserver
     ports:
       - "8080:8080"
 
   airflow-scheduler:
     <<: *airflow-common
+    depends_on:
+      - postgres
+      - spark
     command: scheduler
 
 volumes:
