@@ -4,3 +4,6 @@ pandas
 pyarrow
 deltalake
 s3fs
+faiss-cpu
+python-dotenv
+boto3
