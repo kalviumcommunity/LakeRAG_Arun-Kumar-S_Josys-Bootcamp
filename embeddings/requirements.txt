@@ -1,0 +1,6 @@
+torch
+sentence-transformers
+pandas
+pyarrow
+deltalake
+s3fs
