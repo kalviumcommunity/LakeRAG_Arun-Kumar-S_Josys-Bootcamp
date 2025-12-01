@@ -1,5 +1,6 @@
 .env
 ./airflow/dags/__pycache__/
+backend/__pycache__/
 venv/
-faiss_build
-local_data
+local_data/
+backend/*/__pycache__/
