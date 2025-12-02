@@ -18,12 +18,13 @@ class SummarizeRequest(BaseModel):
 META_PATH = "local_data/faiss/metadata.parquet"
 metadata_df = pd.read_parquet(META_PATH)
 
+key = os.getenv("GEMINI_API_KEY")
+gemini_client = genai.Client(api_key=key) if key else None
 
 def get_gemini_client():
-    key = os.getenv("GEMINI_API_KEY")
-    if not key:
+    if not gemini_client:
         raise HTTPException(status_code=500, detail="GEMINI_API_KEY is missing — configure .env")
-    return genai.Client(api_key=key)
+    return gemini_client
 
 
 @router.post("/")
@@ -46,7 +47,7 @@ def summarize(req: SummarizeRequest):
                 "chunk_index": int(row.chunk_index),
                 "chunk_text": row.chunk_text,
             }
-            for i, row in doc_chunks.iterrows()
+            for i, row in doc_chunks.reset_index(drop=True).itertuples()
         ]
 
     # 🔵 MODE 2 — QUERY-BASED RETRIEVAL (semantic search + threshold)
