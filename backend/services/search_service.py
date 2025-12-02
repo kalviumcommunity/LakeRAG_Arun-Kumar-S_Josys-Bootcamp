@@ -3,6 +3,7 @@ import faiss
 from sentence_transformers import SentenceTransformer
 import numpy as np
 import os
+import re
 
 FAISS_PATH = "local_data/faiss/index.faiss"
 META_PATH  = "local_data/faiss/metadata.parquet"
@@ -18,7 +19,6 @@ if not os.path.exists(FAISS_PATH) or not os.path.exists(META_PATH):
         "Run `build_faiss_index.py` and copy outputs to local_data/faiss/"
     )
 
-# Load components into RAM once on app startup
 index = faiss.read_index(FAISS_PATH)
 metadata = pd.read_parquet(META_PATH)
 model = SentenceTransformer("BAAI/bge-large-en")
@@ -26,16 +26,54 @@ model = SentenceTransformer("BAAI/bge-large-en")
 print(f"🚀 Search service ready. FAISS size: {index.ntotal} | metadata rows: {len(metadata)}")
 
 
-def semantic_search(query: str, k: int = 5):
+# ---------------------------------------------------------------
+# 🔥 Rewrite long questions → compact search-friendly expressions
+# ---------------------------------------------------------------
+def rewrite_query(q: str) -> str:
+    q = q.lower()
+    # remove filler phrases
+    q = re.sub(
+        r"\b(tell me|about|my|explain|what|were|can you|summarize|give|details|information|on|please|describe|do you know)\b",
+        "",
+        q
+    )
+    q = re.sub(r"[^a-z0-9 ]", " ", q)
+    q = re.sub(r"\s+", " ", q).strip()
+    return q or q  # fallback
+
+
+# ---------------------------------------------------------------
+# 🔍 Semantic search
+# ---------------------------------------------------------------
+def semantic_search(query: str, k: int = 5, doc_id: str | None = None):
     """
-    Runs semantic search with 3-layer filtering:
-      1️⃣ Find FAISS top-k results
-      2️⃣ If BEST score < ABSOLUTE_THRESHOLD → return OOC
-      3️⃣ Filter results with score >= best * RELATIVE_FACTOR
+    If doc_id passed → bypass OOC and return ALL chunks in that doc.
+    Otherwise → keyword rewrite + score filtering.
     """
 
-    # Encode → (1 x dim) float32
-    vec = model.encode(query, normalize_embeddings=True)
+    # ⭐ If doc_id provided → return all chunks for that doc (no threshold)
+    if doc_id:
+        doc_rows = metadata[metadata["doc_id"] == doc_id]
+        if doc_rows.empty:
+            return [{"message": "Invalid doc_id — no document found"}]
+
+        return [
+            {
+                "rank": i + 1,
+                "score": 1.0,   # optional since doc_id match is absolute
+                "doc_id": row.doc_id,
+                "chunk_index": int(row.chunk_index),
+                "chunk_text": row.chunk_text
+            }
+            for i, row in doc_rows.sort_values("chunk_index").reset_index(drop=True).itertuples()
+        ]
+
+    # ⭐ Rewrite natural-language questions → compact query
+    clean_query = rewrite_query(query)
+    print(f"💡 Rewritten Query for FAISS: '{clean_query}'")
+
+    # Convert to FAISS embedding
+    vec = model.encode(clean_query, normalize_embeddings=True)
     vec = np.expand_dims(vec, axis=0).astype("float32")
 
     scores, ids = index.search(vec, k)
@@ -43,14 +81,13 @@ def semantic_search(query: str, k: int = 5):
     ids = ids[0]
 
     best = float(scores[0])
-    print(f"\n🔎 BEST SCORE = {best:.4f}")
+    print(f"🔎 BEST SCORE = {best:.4f}")
 
-    # 🧱 Out-Of-Context check
+    # OOC check
     if best < ABSOLUTE_THRESHOLD:
         print("❌ OOC triggered: below absolute threshold")
         return [{"message": "Out of context — no relevant match found"}]
 
-    # Relative cutoff (keeps only strong matches)
     cutoff = best * RELATIVE_FACTOR
     results = []
     rank = 1
@@ -70,7 +107,6 @@ def semantic_search(query: str, k: int = 5):
         })
         rank += 1
 
-    # If nothing passes the filter → OOC
     if not results:
         print("❌ All candidates filtered out → OOC")
         return [{"message": "Out of context — no relevant match found"}]
