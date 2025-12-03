@@ -1,0 +1,66 @@
+# ============================
+# Root .dockerignore
+# Excludes files from Docker build context
+# ============================
+
+# Runtime data (should be volume-mounted, not in image)
+local_data/
+*.faiss
+*.parquet
+
+# Build artifacts
+scala-etl/target/
+scala-etl/project/target/
+scala-etl/project/project/
+
+# Python cache
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.whl
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Documentation (not needed in runtime)
+*.md
+!README.md
+docs/
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.yml
+Dockerfile
+**/Dockerfile
+
+# CI/CD
+.github/
+.gitlab-ci.yml
