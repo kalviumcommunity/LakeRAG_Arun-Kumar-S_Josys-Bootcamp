@@ -1,9 +1,17 @@
 from airflow import DAG
 from airflow.providers.docker.operators.docker import DockerOperator
+from airflow.models import Variable
 from datetime import datetime
 import os
 
 default_args = {"owner": "airflow", "retries": 1}
+
+# Get local data path from Airflow Variable for portability
+# Default points to project directory (update via Airflow UI for other environments)
+LOCAL_DATA_PATH = Variable.get(
+    "LAKERAG_LOCAL_DATA_PATH",
+    default_var="/home/sak23/Desktop/Projects/Josys-Bootcamp/LakeRAG_Arun-Kumar-S_Josys-Bootcamp/local_data"
+)
 
 # Get AWS credentials from environment (should be set in docker-compose.yml)
 def get_aws_env():
@@ -32,11 +40,10 @@ with DAG(
         auto_remove="success",
         force_pull=False,
         docker_url="unix://var/run/docker.sock",
-        network_mode="host",  # Use host network for internet access
         working_dir="/app/embeddings",
         command="python generate_embeddings.py",
         mounts=[
-            {"source": "/home/sak23/Desktop/Projects/Josys-Bootcamp/LakeRAG_Arun-Kumar-S_Josys-Bootcamp/local_data", "target": "/app/local_data", "type": "bind"},
+            {"source": LOCAL_DATA_PATH, "target": "/app/local_data", "type": "bind"},
         ],
         environment=get_aws_env(),
         mount_tmp_dir=False,
@@ -50,11 +57,10 @@ with DAG(
         auto_remove="success",
         force_pull=False,
         docker_url="unix://var/run/docker.sock",
-        network_mode="host",  # Use host network for internet access
         working_dir="/app/embeddings",
         command="python build_faiss_index.py",
         mounts=[
-            {"source": "/home/sak23/Desktop/Projects/Josys-Bootcamp/LakeRAG_Arun-Kumar-S_Josys-Bootcamp/local_data", "target": "/app/local_data", "type": "bind"},
+            {"source": LOCAL_DATA_PATH, "target": "/app/local_data", "type": "bind"},
         ],
         environment=get_aws_env(),
         mount_tmp_dir=False,

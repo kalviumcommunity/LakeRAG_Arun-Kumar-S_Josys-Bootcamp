@@ -28,7 +28,7 @@ storage_options = {
     "AWS_S3_ALLOW_UNSAFE_RENAME": "true",  # Fix 6: Allow Delta Lake operations
 }
 
-model_name = "BAAI/bge-large-en"
+model_name = "BAAI/bge-large-en-v1.5"
 device = "cuda" if torch.cuda.is_available() else "cpu"
 model = SentenceTransformer(model_name).to(device)
 

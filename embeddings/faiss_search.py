@@ -35,7 +35,7 @@ def load_index(local_dir="local_data/runtime"):
     return faiss.read_index(index_path), pd.read_parquet(meta_path)
 
 print("🧠 Loading model...")
-_model = SentenceTransformer("BAAI/bge-large-en")
+_model = SentenceTransformer("BAAI/bge-large-en-v1.5")
 print("📚 Loading local FAISS + metadata...")
 _index, _meta = load_index()
 
