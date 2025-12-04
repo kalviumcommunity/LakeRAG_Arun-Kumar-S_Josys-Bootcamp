@@ -61,11 +61,18 @@ services:
     <<: *airflow-common
     depends_on:
       - postgres
-    command: >
-      bash -c "airflow db init &&
-      airflow users create --username ${AIRFLOW_ADMIN_USERNAME} --password ${AIRFLOW_ADMIN_PASSWORD} \
-      --firstname ${AIRFLOW_ADMIN_FIRSTNAME} --lastname ${AIRFLOW_ADMIN_LASTNAME} \
-      --role Admin --email ${AIRFLOW_ADMIN_EMAIL}"
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        airflow db init
+        airflow users create \
+          --username "$${AIRFLOW_ADMIN_USERNAME:-airflow}" \
+          --password "$${AIRFLOW_ADMIN_PASSWORD:-airflow}" \
+          --firstname "$${AIRFLOW_ADMIN_FIRSTNAME:-Admin}" \
+          --lastname "$${AIRFLOW_ADMIN_LASTNAME:-User}" \
+          --role Admin \
+          --email "$${AIRFLOW_ADMIN_EMAIL:-admin@example.com}" || true
     restart: "no"
 
   airflow-webserver:
@@ -78,6 +85,9 @@ services:
       - ./scala-etl/target/scala-2.12:/opt/etl
       - ./embeddings:/opt/airflow/embeddings
       - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
 
   airflow-scheduler:
     <<: *airflow-common
@@ -87,6 +97,9 @@ services:
       - ./scala-etl/target/scala-2.12:/opt/etl
       - ./embeddings:/opt/airflow/embeddings
       - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
 
   backend:
     build:
@@ -119,24 +132,9 @@ services:
     build:
       context: .
       dockerfile: embeddings/Dockerfile
-    container_name: embeddings
-    env_file:
-      - .env
-    environment:
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-      AWS_REGION: ${AWS_REGION}
-      PYTHONUNBUFFERED: "1"
-    volumes:
-      - ./embeddings:/app/embeddings
-      - ./local_data:/app/local_data
-      - embeddings-model-cache:/root/.cache  # Persist model cache
-    working_dir: /app/embeddings
-    deploy:
-      resources:
-        limits:
-          memory: 4G
-    command: tail -f /dev/null
+    image: lakerag_arun-kumar-s_josys-bootcamp_embeddings:latest
+    profiles:
+      - build-only
 
 volumes:
   postgres-db-volume:

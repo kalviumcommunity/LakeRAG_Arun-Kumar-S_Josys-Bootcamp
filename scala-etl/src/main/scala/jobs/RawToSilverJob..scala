@@ -12,6 +12,10 @@ object RawToSilverJob {
 
     implicit val spark: SparkSession = SparkBuilder.get("RawToSilver")
 
+    // Enable Delta Lake file recovery options
+    spark.conf.set("spark.sql.files.ignoreMissingFiles", "true")
+    spark.conf.set("spark.sql.files.ignoreCorruptFiles", "true")
+
     val rawPath    = AppConfig.RAW_INGESTED
     val silverPath = AppConfig.SILVER
 

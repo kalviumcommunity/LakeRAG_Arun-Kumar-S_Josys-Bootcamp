@@ -37,8 +37,11 @@ COPY --from=builder /install /usr/local
 # Copy model cache from builder (critical for performance)
 COPY --from=builder /root/.cache /root/.cache
 
-# Copy application code (must use embeddings/ prefix since context is root)
-COPY embeddings/*.py ./
+# Fix 4: Create embeddings directory and copy scripts there
+RUN mkdir -p /app/embeddings
+
+# Copy application code to embeddings subdirectory
+COPY embeddings/*.py ./embeddings/
 
 # Create data directories
 RUN mkdir -p /app/local_data/gold /app/local_data/faiss

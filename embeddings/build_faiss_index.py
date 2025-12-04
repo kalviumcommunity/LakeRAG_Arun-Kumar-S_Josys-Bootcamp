@@ -6,6 +6,10 @@ import pyarrow.parquet as pq
 import pyarrow as pa
 from dotenv import load_dotenv
 from datetime import datetime, timezone
+import os
+
+# Fix 1: Ensure correct working directory
+os.chdir('/app/embeddings')
 
 load_dotenv()
 

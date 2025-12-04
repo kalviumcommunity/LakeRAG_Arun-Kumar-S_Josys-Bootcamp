@@ -12,6 +12,10 @@ object SilverToGoldJob {
 
     val spark = SparkBuilder.get("SilverToGold")
 
+    // Enable Delta Lake file recovery options
+    spark.conf.set("spark.sql.files.ignoreMissingFiles", "true")
+    spark.conf.set("spark.sql.files.ignoreCorruptFiles", "true")
+
     val silverPath = AppConfig.SILVER
     val goldPath   = AppConfig.GOLD
 
