@@ -5,3 +5,4 @@ backend/__pycache__/
 local_data/
 backend/*/__pycache__/
 client
+test_data

@@ -11,6 +11,10 @@ object RawIngestionJob {
 
     val spark = SparkBuilder.get("RawIngestion")
 
+    // Enable Delta Lake file recovery options
+    spark.conf.set("spark.sql.files.ignoreMissingFiles", "true")
+    spark.conf.set("spark.sql.files.ignoreCorruptFiles", "true")
+
     val inputPath  = AppConfig.RAW_INPUT
     val outputPath = AppConfig.RAW_INGESTED
 

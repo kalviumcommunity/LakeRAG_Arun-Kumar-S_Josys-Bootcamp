@@ -4,26 +4,81 @@ from sentence_transformers import SentenceTransformer
 import numpy as np
 import os
 import re
-
-FAISS_PATH = "/app/local_data/faiss/index.faiss"
-META_PATH  = "/app/local_data/faiss/metadata.parquet"
+import boto3
 
 ABSOLUTE_THRESHOLD = 0.65       # if best < this → Out-Of-Context
 RELATIVE_FACTOR    = 0.85       # keep results >= 85% of best score
 
+# AWS S3 configuration
+BUCKET = "lakerag-arun-bootcamp"
+INDEX_PREFIX = "vector-index"
+AWS_REGION = os.getenv("AWS_REGION", "ap-south-1")
+AWS_KEY = os.getenv("AWS_ACCESS_KEY_ID")
+AWS_SECRET = os.getenv("AWS_SECRET_ACCESS_KEY")
+
 print("🔍 Initializing semantic search service...")
 
-if not os.path.exists(FAISS_PATH) or not os.path.exists(META_PATH):
-    raise FileNotFoundError(
-        "\n❌ FAISS index/metadata missing.\n"
-        "Run `build_faiss_index.py` and copy outputs to local_data/faiss/"
-    )
+# Lazy loading - only load when needed
+index = None
+metadata = None
+model = None
 
-index = faiss.read_index(FAISS_PATH)
-metadata = pd.read_parquet(META_PATH)
-model = SentenceTransformer("BAAI/bge-large-en-v1.5")
+def _download_latest_from_s3(local_dir="/tmp/faiss"):
+    """Download latest FAISS index and metadata from S3"""
+    os.makedirs(local_dir, exist_ok=True)
+    
+    s3 = boto3.client("s3", region_name=AWS_REGION, 
+                     aws_access_key_id=AWS_KEY, 
+                     aws_secret_access_key=AWS_SECRET)
+    
+    # List and find latest files
+    resp = s3.list_objects_v2(Bucket=BUCKET, Prefix=INDEX_PREFIX)
+    objs = resp.get("Contents", [])
+    
+    if not objs:
+        raise FileNotFoundError(f"No files found in s3://{BUCKET}/{INDEX_PREFIX}/")
+    
+    faiss_files = [o for o in objs if o["Key"].endswith(".faiss")]
+    meta_files = [o for o in objs if o["Key"].endswith(".parquet")]
+    
+    if not faiss_files or not meta_files:
+        raise FileNotFoundError("Missing .faiss or .parquet files in S3")
+    
+    latest_faiss = sorted(faiss_files, key=lambda x: x["LastModified"])[-1]["Key"]
+    latest_meta = sorted(meta_files, key=lambda x: x["LastModified"])[-1]["Key"]
+    
+    index_path = os.path.join(local_dir, "index.faiss")
+    meta_path = os.path.join(local_dir, "metadata.parquet")
+    
+    print(f"📥 Downloading {latest_faiss} from S3...")
+    s3.download_file(BUCKET, latest_faiss, index_path)
+    print(f"📥 Downloading {latest_meta} from S3...")
+    s3.download_file(BUCKET, latest_meta, meta_path)
+    
+    return index_path, meta_path
 
-print(f"🚀 Search service ready. FAISS size: {index.ntotal} | metadata rows: {len(metadata)}")
+def _ensure_loaded():
+    """Lazy load FAISS index, metadata, and model on first search"""
+    global index, metadata, model
+    
+    if index is not None:
+        return  # Already loaded
+    
+    print("📥 Downloading latest FAISS index from S3...")
+    index_path, meta_path = _download_latest_from_s3()
+    
+    print("📚 Loading FAISS index and metadata...")
+    index = faiss.read_index(index_path)
+    metadata = pd.read_parquet(meta_path)
+    model = SentenceTransformer("BAAI/bge-large-en-v1.5")
+    print(f"🚀 Search service ready. FAISS size: {index.ntotal} | metadata rows: {len(metadata)}")
+
+# Load on startup (so errors show immediately, not on first request)
+try:
+    _ensure_loaded()
+except Exception as e:
+    print(f"⚠️  Failed to load FAISS index from S3: {e}")
+    print("   Search will be unavailable until index is built and uploaded.")
 
 
 # ---------------------------------------------------------------
@@ -50,6 +105,9 @@ def semantic_search(query: str, k: int = 5, doc_id: str | None = None):
     If doc_id passed → bypass OOC and return ALL chunks in that doc.
     Otherwise → keyword rewrite + score filtering.
     """
+    
+    # Ensure FAISS index is loaded
+    _ensure_loaded()
 
     # ⭐ If doc_id provided → return all chunks for that doc (no threshold)
     if doc_id:

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from backend.services.search_service import semantic_search
+from backend.services.search_service import semantic_search, metadata  # Import metadata from search_service
 from google import genai
 import os
 import pandas as pd
@@ -14,9 +14,14 @@ class SummarizeRequest(BaseModel):
     k: int = 5
 
 
-# Load metadata once for full-document mode
-META_PATH = "/app/local_data/faiss/metadata.parquet"
-metadata_df = pd.read_parquet(META_PATH)
+def get_metadata():
+    """Get metadata from search_service (already loaded from S3)"""
+    if metadata is None:
+        raise HTTPException(
+            status_code=503, 
+            detail="Metadata not available. Run the embeddings pipeline first or restart the backend."
+        )
+    return metadata
 
 key = os.getenv("GEMINI_API_KEY")
 gemini_client = genai.Client(api_key=key) if key else None
@@ -34,6 +39,7 @@ def summarize(req: SummarizeRequest):
 
     # 🟢 MODE 1 — FULL DOCUMENT SUMMARIZATION (no threshold, no semantic filtering)
     if req.doc_id:
+        metadata_df = get_metadata()
         doc_chunks = metadata_df[metadata_df["doc_id"] == req.doc_id]
         if doc_chunks.empty:
             raise HTTPException(status_code=404, detail="Document not found")
