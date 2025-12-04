@@ -15,7 +15,7 @@ class SummarizeRequest(BaseModel):
 
 
 # Load metadata once for full-document mode
-META_PATH = "local_data/faiss/metadata.parquet"
+META_PATH = "/app/local_data/faiss/metadata.parquet"
 metadata_df = pd.read_parquet(META_PATH)
 
 key = os.getenv("GEMINI_API_KEY")
@@ -39,6 +39,8 @@ def summarize(req: SummarizeRequest):
             raise HTTPException(status_code=404, detail="Document not found")
 
         doc_chunks = doc_chunks.sort_values("chunk_index")  # preserve correct order
+        
+        # ✅ FIX: Use enumerate() separately
         hits = [
             {
                 "rank": i + 1,
@@ -47,7 +49,7 @@ def summarize(req: SummarizeRequest):
                 "chunk_index": int(row.chunk_index),
                 "chunk_text": row.chunk_text,
             }
-            for i, row in doc_chunks.reset_index(drop=True).itertuples()
+            for i, row in doc_chunks.iterrows()
         ]
 
     # 🔵 MODE 2 — QUERY-BASED RETRIEVAL (semantic search + threshold)

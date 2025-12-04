@@ -1,6 +1,8 @@
 x-airflow-common: &airflow-common
+  image: lakerag-airflow:latest
   build:
-    context: ./airflow
+    context: .
+    dockerfile: airflow/Dockerfile
   env_file:
     - .env
   environment:
@@ -10,11 +12,17 @@ x-airflow-common: &airflow-common
     AIRFLOW__CORE__LOAD_EXAMPLES: "false"
     AIRFLOW__CORE__FERNET_KEY: ${FERNET_KEY}
     AIRFLOW__WEBSERVER__SECRET_KEY: ${SECRET_KEY}
-    # Auto-create spark_default connection → required for SparkSubmitOperator
     AIRFLOW__CONNECTION__SPARK_DEFAULT: "spark://spark:7077"
+    # Performance optimizations
+    AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL: 30
+    AIRFLOW__SCHEDULER__MIN_FILE_PROCESS_INTERVAL: 30
+    AIRFLOW__CORE__PARALLELISM: 8
+    AIRFLOW__CORE__DAG_CONCURRENCY: 4
+    AIRFLOW__CORE__MAX_ACTIVE_RUNS_PER_DAG: 1
   volumes:
     - ./airflow/dags:/opt/airflow/dags
     - ./scala-etl/target/scala-2.12:/opt/etl
+    - ./embeddings:/opt/airflow/embeddings
   depends_on:
     - postgres
     - spark
@@ -48,35 +56,89 @@ services:
       /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark:7077
     ports:
       - "8082:8081"
-    volumes:
-      - ./scala-etl/target/scala-2.12:/opt/etl
 
   airflow-init:
     <<: *airflow-common
     depends_on:
       - postgres
     command: >
-      bash -c "
-        airflow db init &&
-        airflow users create --username ${AIRFLOW_ADMIN_USERNAME} --password ${AIRFLOW_ADMIN_PASSWORD} --firstname ${AIRFLOW_ADMIN_FIRSTNAME} --lastname ${AIRFLOW_ADMIN_LASTNAME} --role Admin --email ${AIRFLOW_ADMIN_EMAIL}
-      "
+      bash -c "airflow db init &&
+      airflow users create --username ${AIRFLOW_ADMIN_USERNAME} --password ${AIRFLOW_ADMIN_PASSWORD} \
+      --firstname ${AIRFLOW_ADMIN_FIRSTNAME} --lastname ${AIRFLOW_ADMIN_LASTNAME} \
+      --role Admin --email ${AIRFLOW_ADMIN_EMAIL}"
     restart: "no"
 
   airflow-webserver:
     <<: *airflow-common
-    depends_on:
-      - postgres
-      - spark
     command: webserver
     ports:
       - "8080:8080"
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./scala-etl/target/scala-2.12:/opt/etl
+      - ./embeddings:/opt/airflow/embeddings
+      - /var/run/docker.sock:/var/run/docker.sock
 
   airflow-scheduler:
     <<: *airflow-common
-    depends_on:
-      - postgres
-      - spark
     command: scheduler
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./scala-etl/target/scala-2.12:/opt/etl
+      - ./embeddings:/opt/airflow/embeddings
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: backend
+    env_file:
+      - .env
+    environment:
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_REGION: ${AWS_REGION}
+      BUCKET_NAME: ${BUCKET_NAME:-lakerag-arun-bootcamp}
+      # Python optimization
+      PYTHONUNBUFFERED: 1
+      PYTHONDONTWRITEBYTECODE: 1
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - ./local_data:/app/local_data
+      - model-cache:/root/.cache
+    ports:
+      - "8000:8000"
+    depends_on:
+      - airflow-scheduler
+      - spark
+
+  embeddings:
+    build:
+      context: .
+      dockerfile: embeddings/Dockerfile
+    container_name: embeddings
+    env_file:
+      - .env
+    environment:
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_REGION: ${AWS_REGION}
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ./embeddings:/app/embeddings
+      - ./local_data:/app/local_data
+      - embeddings-model-cache:/root/.cache  # Persist model cache
+    working_dir: /app/embeddings
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+    command: tail -f /dev/null
 
 volumes:
   postgres-db-volume:
+  model-cache:
+  embeddings-model-cache:

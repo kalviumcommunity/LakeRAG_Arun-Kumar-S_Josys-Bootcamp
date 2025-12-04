@@ -5,11 +5,11 @@ import numpy as np
 import os
 import re
 
-FAISS_PATH = "local_data/faiss/index.faiss"
-META_PATH  = "local_data/faiss/metadata.parquet"
+FAISS_PATH = "/app/local_data/faiss/index.faiss"
+META_PATH  = "/app/local_data/faiss/metadata.parquet"
 
-ABSOLUTE_THRESHOLD = 0.80       # if best < this → Out-Of-Context
-RELATIVE_FACTOR    = 0.90       # keep results >= 90% of best score
+ABSOLUTE_THRESHOLD = 0.65       # if best < this → Out-Of-Context
+RELATIVE_FACTOR    = 0.85       # keep results >= 85% of best score
 
 print("🔍 Initializing semantic search service...")
 
@@ -21,7 +21,7 @@ if not os.path.exists(FAISS_PATH) or not os.path.exists(META_PATH):
 
 index = faiss.read_index(FAISS_PATH)
 metadata = pd.read_parquet(META_PATH)
-model = SentenceTransformer("BAAI/bge-large-en")
+model = SentenceTransformer("BAAI/bge-large-en-v1.5")
 
 print(f"🚀 Search service ready. FAISS size: {index.ntotal} | metadata rows: {len(metadata)}")
 
@@ -31,15 +31,15 @@ print(f"🚀 Search service ready. FAISS size: {index.ntotal} | metadata rows: {
 # ---------------------------------------------------------------
 def rewrite_query(q: str) -> str:
     q = q.lower()
-    # remove filler phrases
+    # remove only stop words, keep company names and important terms
     q = re.sub(
-        r"\b(tell me|about|my|explain|what|were|can you|summarize|give|details|information|on|please|describe|do you know)\b",
+        r"\b(tell me|about|explain|what|were|can you|give|details|information|please|describe|do you know)\b",
         "",
         q
     )
     q = re.sub(r"[^a-z0-9 ]", " ", q)
     q = re.sub(r"\s+", " ", q).strip()
-    return q or q  # fallback
+    return q if q else "default"  # fallback
 
 
 # ---------------------------------------------------------------
