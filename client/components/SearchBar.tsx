@@ -90,7 +90,7 @@ export default function SearchBar() {
       {results.length > 0 && (
         <div className="mt-6 space-y-4">
           <h2 className="text-xl font-semibold text-gray-800">
-            Found {results.length} results for &quot;{query}&quot
+            Found {results.length} results for &quot;{query}&quot;
           </h2>
           {results.map((result, index) => (
             <div
