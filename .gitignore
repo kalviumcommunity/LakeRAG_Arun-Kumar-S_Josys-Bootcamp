@@ -5,3 +5,4 @@ local_data/
 backend/*/__pycache__/
 test_data
 airflow/dags/__pycache__/
+backend/model_cache
