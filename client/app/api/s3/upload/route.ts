@@ -30,6 +30,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // --- ALLOWED EXTENSIONS CHECK (pdf, txt, json) ---
+    const filename = (file as any).name || "";
+    const ext = filename.split(".").pop()?.toLowerCase() || "";
+    const allowed = new Set(["pdf", "txt", "json"]);
+
+    if (!allowed.has(ext)) {
+      // Ignore / reject unsupported types
+      return NextResponse.json(
+        { error: "Unsupported file type. Allowed: pdf, txt, json" },
+        { status: 400 }
+      );
+    }
     const buffer = Buffer.from(await file.arrayBuffer());
     const key = `raw/${file.name}`;
 

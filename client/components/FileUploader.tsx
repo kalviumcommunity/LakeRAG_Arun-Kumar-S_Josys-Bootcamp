@@ -11,9 +11,23 @@ export default function FileUploader() {
   const [error, setError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const allowed = new Set(["pdf", "txt", "json"]);
+
+  const isAllowedFile = (file: File | null) => {
+    if (!file) return false;
+    const name = file.name || "";
+    const ext = name.split(".").pop()?.toLowerCase() || "";
+    return allowed.has(ext);
+  };
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+    const file = e.target.files?.[0] || null;
     if (file) {
+      if (!isAllowedFile(file)) {
+        setError("Unsupported file type. Only PDF, TXT and JSON are allowed.");
+        setSelectedFile(null);
+        return;
+      }
       setSelectedFile(file);
       setSuccess(false);
       setError("");
@@ -23,6 +37,10 @@ export default function FileUploader() {
   const handleUpload = async () => {
     if (!selectedFile) {
       setError("Please select a file first");
+      return;
+    }
+    if (!isAllowedFile(selectedFile)) {
+      setError("Unsupported file type. Only PDF, TXT and JSON are allowed.");
       return;
     }
 
@@ -46,8 +64,13 @@ export default function FileUploader() {
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    const file = e.dataTransfer.files[0];
+    const file = e.dataTransfer.files[0] || null;
     if (file) {
+      if (!isAllowedFile(file)) {
+        setError("Unsupported file type. Only PDF, TXT and JSON are allowed.");
+        setSelectedFile(null);
+        return;
+      }
       setSelectedFile(file);
       setSuccess(false);
       setError("");
@@ -71,11 +94,12 @@ export default function FileUploader() {
           Drop your file here or click to browse
         </p>
         <p className="text-sm text-gray-500">
-          Support for PDF, TXT, DOCX, and other document formats
+          Support for PDF, TXT and JSON document formats
         </p>
         <input
           ref={fileInputRef}
           type="file"
+          accept=".pdf,.txt,.json"
           onChange={handleFileSelect}
           className="hidden"
         />
