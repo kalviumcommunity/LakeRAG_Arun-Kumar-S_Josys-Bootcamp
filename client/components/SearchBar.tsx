@@ -92,9 +92,9 @@ export default function SearchBar() {
           <h2 className="text-xl font-semibold text-gray-800">
             Found {results.length} results for &quot;{query}&quot
           </h2>
-          {results.map((result) => (
+          {results.map((result, index) => (
             <div
-              key={`${result.doc_id}-${result.chunk_index}`}
+              key={`${result.doc_id}-${result.chunk_index}-${index}`}
               className="p-5 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow"
             >
               <div className="flex items-start justify-between mb-2">
