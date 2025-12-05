@@ -1,7 +1,7 @@
 # 📚 LakeRAG Complete Documentation
 
 **Version:** 1.0.0  
-**Last Updated:** December 2024  
+**Last Updated:** December 2025  
 **Project:** LakeRAG - RAG Lakehouse System
 
 ---
@@ -11,13 +11,14 @@
 1. [System Overview](#1-system-overview)
 2. [Architecture](#2-architecture)
 3. [Components](#3-components)
-4. [Prerequisites](#4-prerequisites)
-5. [Setup Guide](#5-setup-guide)
-6. [Running the Pipeline](#6-running-the-pipeline)
-7. [API Documentation](#7-api-documentation)
-8. [Data Flow](#8-data-flow)
-9. [Troubleshooting](#9-troubleshooting)
-10. [Known Issues](#10-known-issues)
+4. [Frontend Integration](#4-frontend-integration)
+5. [Prerequisites](#5-prerequisites)
+6. [Setup Guide](#6-setup-guide)
+7. [Running the Pipeline](#7-running-the-pipeline)
+8. [API Documentation](#8-api-documentation)
+9. [Data Flow](#9-data-flow)
+10. [Troubleshooting](#10-troubleshooting)
+11. [Known Issues](#11-known-issues)
 
 ---
 
@@ -52,34 +53,34 @@ LakeRAG is a production-grade **Retrieval-Augmented Generation (RAG) system** bu
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                          USER UPLOADS                                │
+│                          USER UPLOADS                               │
 │              PDFs, TXT, JSON → S3 (s3://lakerag-arun-bootcamp/raw/) │
 └─────────────────────────────────────────────────────────────────────┘
                                     ↓
 ┌─────────────────────────────────────────────────────────────────────┐
-│                     SCALA + SPARK ETL PIPELINE                       │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐             │
-│  │ Raw Ingestion│→ │ Raw → Silver │→ │Silver → Gold │             │
-│  └──────────────┘  └──────────────┘  └──────────────┘             │
-│   Extract Text     Clean & Dedupe    Chunk (500 chars)             │
+│                     SCALA + SPARK ETL PIPELINE                      │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐               │
+│  │ Raw Ingestion│→ │ Raw → Silver │→ │Silver → Gold │               │
+│  └──────────────┘  └──────────────┘  └──────────────┘               │
+│   Extract Text     Clean & Dedupe    Chunk (500 chars)              │
 │   → Delta Lake     → Delta Lake      → Delta Lake                   │
 └─────────────────────────────────────────────────────────────────────┘
                                     ↓
 ┌─────────────────────────────────────────────────────────────────────┐
-│                   PYTHON EMBEDDINGS PIPELINE                         │
-│  ┌──────────────────┐         ┌────────────────────┐               │
-│  │Generate Embeddings│    →   │ Build FAISS Index  │               │
-│  └──────────────────┘         └────────────────────┘               │
+│                   PYTHON EMBEDDINGS PIPELINE                        │
+│  ┌──────────────────┐         ┌────────────────────┐                │
+│  │Generate Embeddings│    →   │ Build FAISS Index  │                │
+│  └──────────────────┘         └────────────────────┘                │
 │   BGE-large-en-v1.5           IndexFlatIP (cosine)                  │
 │   → S3 Parquet                → S3 (.faiss + metadata)              │
 └─────────────────────────────────────────────────────────────────────┘
                                     ↓
 ┌─────────────────────────────────────────────────────────────────────┐
-│                        FASTAPI BACKEND                               │
-│  ┌────────────────┐         ┌─────────────────────┐                │
-│  │  POST /search  │         │   POST /summarize   │                │
-│  │  (Semantic)    │         │   (Gemini 2.0)      │                │
-│  └────────────────┘         └─────────────────────┘                │
+│                        FASTAPI BACKEND                              │
+│  ┌────────────────┐         ┌─────────────────────┐                 │
+│  │  POST /search  │         │   POST /summarize   │                 │
+│  │  (Semantic)    │         │   (Gemini 2.0)      │                 │
+│  └────────────────┘         └─────────────────────┘                 │
 │   FAISS Retrieval            RAG-based Summary                      │
 └─────────────────────────────────────────────────────────────────────┘
 ```
@@ -285,7 +286,413 @@ curl http://localhost:8000/health
 
 ---
 
-## 4. Prerequisites
+## 4. Frontend Integration
+
+### **4.1 Next.js Frontend Overview**
+
+The LakeRAG frontend is a modern web application built with **Next.js 14** using the App Router architecture. It provides a user-friendly interface for document management, semantic search, and AI-powered summarization.
+
+**Technology Stack**:
+- **Framework**: Next.js 14 with TypeScript
+- **Styling**: Tailwind CSS 4
+- **UI Components**: Lucide React icons
+- **API Client**: Axios for HTTP requests
+- **AWS SDK**: @aws-sdk/client-s3 for S3 operations
+
+**Port**: http://localhost:3000
+
+---
+
+### **4.2 Frontend Pages**
+
+#### **Home Page** (`/`)
+Landing page with system overview and quick navigation to all features.
+
+**Features**:
+- System introduction
+- Feature highlights with icons
+- Technology stack display
+- Quick links to main functionalities
+
+#### **Search Page** (`/search`)
+Semantic search interface for querying documents.
+
+**Features**:
+- Natural language query input
+- Configurable result count (k parameter)
+- Real-time search results with scores
+- Display of document IDs and chunk indices
+- Result ranking by relevance
+
+**User Flow**:
+1. Enter search query (e.g., "What are the technical skills?")
+2. Adjust number of results (default: 5)
+3. Click "Search" to retrieve results
+4. View ranked results with similarity scores
+
+#### **Summarize Page** (`/summarize`)
+AI-powered document summarization interface.
+
+**Features**:
+- Two modes of operation:
+  - **Query-based**: Search and summarize matching documents
+  - **Document-specific**: Summarize by document ID
+- Configurable chunk count for context
+- Gemini 2.0 Flash-powered summaries
+- Display of source document information
+
+**User Flow**:
+1. Choose mode: Query or Document ID
+2. Enter query or paste document ID
+3. Set number of chunks to use (default: 5)
+4. Click "Summarize" to generate summary
+5. View AI-generated summary with metadata
+
+#### **Upload Page** (`/upload`)
+Document upload interface with drag-and-drop support.
+
+**Features**:
+- Drag-and-drop file upload
+- Click-to-browse file selection
+- Multiple file format support (PDF, TXT, JSON)
+- Progress indicators
+- Upload confirmation
+- Automatic S3 storage in `raw/` folder
+
+**User Flow**:
+1. Drag files or click to browse
+2. Select documents to upload
+3. Files automatically uploaded to S3
+4. Confirmation message on success
+5. Files ready for ETL processing
+
+#### **Files Page** (`/files`)
+S3 bucket file management interface.
+
+**Features**:
+- List all files in S3 bucket
+- Display file sizes and modification dates
+- Delete files with confirmation dialog
+- Refresh to see latest changes
+- Search/filter functionality
+- Folder navigation support
+
+**User Flow**:
+1. View all uploaded files
+2. Check file details (size, date)
+3. Delete unwanted files
+4. Refresh to see new uploads
+
+---
+
+### **4.3 Frontend-Backend Integration**
+
+#### **API Communication**
+
+The frontend communicates with the FastAPI backend through the API client (`lib/api.ts`).
+
+**Base Configuration**:
+```typescript
+const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
+```
+
+**API Functions**:
+
+1. **Search API**
+```typescript
+export async function searchDocuments(query: string, k: number = 5) {
+  const response = await axios.post(`${API_BASE_URL}/search/`, {
+    query,
+    k
+  });
+  return response.data;
+}
+```
+
+2. **Summarize API**
+```typescript
+export async function summarizeDocuments(params: {
+  query?: string;
+  doc_id?: string;
+  k?: number;
+}) {
+  const response = await axios.post(`${API_BASE_URL}/summarize/`, params);
+  return response.data;
+}
+```
+
+#### **S3 Operations**
+
+S3 operations are handled through Next.js API routes to keep AWS credentials secure.
+
+**API Routes** (`app/api/s3/`):
+
+1. **List Files** - `GET /api/s3/list`
+```typescript
+// Returns list of all files in S3 bucket
+{
+  files: [
+    { key: "raw/document.pdf", size: 123456, lastModified: "2025-12-04" }
+  ]
+}
+```
+
+2. **Upload File** - `POST /api/s3/upload`
+```typescript
+// Uploads file to S3 raw/ folder
+// Request: FormData with file
+// Response: { success: true, key: "raw/document.pdf" }
+```
+
+3. **Delete File** - `DELETE /api/s3/delete`
+```typescript
+// Deletes file from S3
+// Request: { key: "raw/document.pdf" }
+// Response: { success: true }
+```
+
+---
+
+### **4.4 Environment Configuration**
+
+#### **Frontend Environment Variables** (`.env.local`)
+
+```env
+# Backend API endpoint
+NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
+
+# AWS Configuration (for S3 operations)
+AWS_REGION=ap-south-1
+AWS_ACCESS_KEY_ID=your_access_key_id
+AWS_SECRET_ACCESS_KEY=your_secret_access_key
+S3_BUCKET_NAME=lakerag-arun-bootcamp
+BUCKET_NAME=lakerag-arun-bootcamp
+```
+
+**Notes**:
+- `NEXT_PUBLIC_*` variables are exposed to the browser
+- AWS credentials are kept server-side in API routes
+- Backend URL must be accessible from user's browser
+
+---
+
+### **4.5 Component Architecture**
+
+#### **Key Components** (`components/`)
+
+1. **Navbar.tsx**
+```typescript
+// Navigation bar with links to all pages
+// Highlights active page
+// Responsive mobile menu
+```
+
+2. **SearchBar.tsx**
+```typescript
+// Search input and results display
+// Props: query, results, loading state
+// Handles search submission and result rendering
+```
+
+3. **SummarizeForm.tsx**
+```typescript
+// Summarization interface
+// Supports query and doc_id modes
+// Displays generated summaries with metadata
+```
+
+4. **FileUploader.tsx**
+```typescript
+// Drag-and-drop file upload
+// File validation
+// Progress indicators
+// Upload to S3 via API route
+```
+
+5. **FileManager.tsx**
+```typescript
+// File list display
+// Delete confirmation dialogs
+// Refresh functionality
+// File metadata display
+```
+
+---
+
+### **4.6 Development Workflow**
+
+#### **Running Frontend Locally**
+
+```bash
+cd client
+
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+
+# Access at http://localhost:3000
+```
+
+#### **Building for Production**
+
+```bash
+# Build optimized production bundle
+npm run build
+
+# Start production server
+npm start
+```
+
+#### **Linting & Formatting**
+
+```bash
+# Run ESLint
+npm run lint
+
+# Auto-fix issues
+npm run lint -- --fix
+```
+
+---
+
+### **4.7 Frontend-Backend Data Flow**
+
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│                        USER INTERACTION                          │
+│                    (Browser @ localhost:3000)                    │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+              ┌───────────────┼───────────────┐
+              │               │               │
+        Upload Page     Search Page    Summarize Page
+              │               │               │
+              ▼               ▼               ▼
+     ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+     │ Next.js API  │  │  API Client  │  │  API Client  │
+     │   Routes     │  │   (Axios)    │  │   (Axios)    │
+     └──────────────┘  └──────────────┘  └──────────────┘
+              │               │               │
+              │               └───────┬───────┘
+              │                       │
+              ▼                       ▼
+        ┌──────────────────────────────────────┐
+        │      AWS S3 Bucket                   │
+        │   (raw/, silver/, gold/)             │
+        └──────────────────────────────────────┘
+                       │
+                       ▼
+        ┌──────────────────────────────────────┐
+        │    FastAPI Backend                   │
+        │  (localhost:8000)                    │
+        │  - POST /search/                     │
+        │  - POST /summarize/                  │
+        │  - GET /health                       │
+        └──────────────────────────────────────┘
+                       │
+              ┌────────┴────────┐
+              ▼                 ▼
+     ┌─────────────┐    ┌─────────────┐
+     │ FAISS Index │    │ Gemini API  │
+     │  (Vectors)  │    │   (LLM)     │
+     └─────────────┘    └─────────────┘
+```
+
+---
+
+### **4.8 Security Considerations**
+
+#### **Credentials Management**
+
+1. **Never expose AWS credentials in browser**
+   - Use Next.js API routes for S3 operations
+   - Keep credentials in `.env.local` (server-side only)
+   - Add `.env.local` to `.gitignore`
+
+2. **CORS Configuration**
+   - Backend must allow frontend origin
+   - Configure in `backend/main.py`:
+```python
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+```
+
+3. **API Key Protection**
+   - Gemini API key stored in backend `.env`
+   - Never sent to frontend
+   - Backend validates all requests
+
+---
+
+### **4.9 Troubleshooting Frontend Issues**
+
+#### **Issue: Cannot Connect to Backend**
+
+**Symptoms**:
+- Search/Summarize returns errors
+- Network errors in browser console
+
+**Solutions**:
+1. Verify backend is running: `curl http://localhost:8000/health`
+2. Check `NEXT_PUBLIC_BACKEND_URL` in `.env.local`
+3. Ensure CORS is configured in backend
+4. Check browser console for error details
+
+#### **Issue: S3 Upload Fails**
+
+**Symptoms**:
+- Upload returns 500 error
+- "Access Denied" messages
+
+**Solutions**:
+1. Verify AWS credentials in `.env.local`
+2. Check S3 bucket exists: `aws s3 ls s3://lakerag-arun-bootcamp/`
+3. Verify IAM permissions
+4. Check bucket region matches `AWS_REGION`
+
+#### **Issue: Search Returns No Results**
+
+**Symptoms**:
+- Search completes but shows no results
+- Empty results array
+
+**Solutions**:
+1. Verify FAISS index exists in backend
+2. Check backend logs: `docker-compose logs backend`
+3. Ensure ETL pipeline has been run
+4. Try broader search queries
+
+#### **Issue: Page Not Loading**
+
+**Symptoms**:
+- Blank page or errors
+- TypeScript compilation errors
+
+**Solutions**:
+```bash
+# Clear Next.js cache
+rm -rf .next
+
+# Reinstall dependencies
+rm -rf node_modules package-lock.json
+npm install
+
+# Rebuild
+npm run build
+```
+
+---
+
+## 5. Prerequisites
 
 ### **4.1 Hardware Requirements**
 
@@ -1373,6 +1780,6 @@ docker volume prune
 ---
 
 **Document Version**: 1.0.0  
-**Last Updated**: December 2024  
+**Last Updated**: December 2025  
 **Maintained By**: Arun Kumar S  
 **Contact**: arun.ofc09@gmail.com

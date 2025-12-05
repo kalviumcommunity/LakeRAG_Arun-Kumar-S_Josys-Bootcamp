@@ -6,8 +6,8 @@ import os
 import re
 import boto3
 
-ABSOLUTE_THRESHOLD = 0.65       # if best < this → Out-Of-Context
-RELATIVE_FACTOR    = 0.85       # keep results >= 85% of best score
+ABSOLUTE_THRESHOLD = 0.40
+RELATIVE_FACTOR    = 0.80
 
 # AWS S3 configuration
 BUCKET = "lakerag-arun-bootcamp"
